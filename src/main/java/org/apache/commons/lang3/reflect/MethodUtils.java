@@ -274,8 +274,9 @@ public class MethodUtils {
             final Class<?> mcls = method.getDeclaringClass();
             final List<Class<?>> classes = getAllSuperclassesAndInterfaces(mcls);
             for (final Class<?> acls : classes) {
-                final Method equivalentMethod = ignoreAccess ? getMatchingMethod(acls, method.getName(), method.getParameterTypes())
-                        : getMatchingAccessibleMethod(acls, method.getName(), method.getParameterTypes());
+                final Method equivalentMethod = ignoreAccess
+                        ? getExactDeclaredMethod(acls, method.getName(), method.getParameterTypes())
+                        : getExactAccessibleMethod(acls, method.getName(), method.getParameterTypes());
                 if (equivalentMethod != null) {
                     annotation = equivalentMethod.getAnnotation(annotationCls);
                     if (annotation != null) {
@@ -285,6 +286,26 @@ public class MethodUtils {
             }
         }
         return annotation;
+    }
+
+    private static Method getExactAccessibleMethod(final Class<?> cls, final String name, final Class<?>... parameterTypes) {
+        final Method m = getExactDeclaredMethod(cls, name, parameterTypes);
+        if (m != null && !m.isAccessible()) {
+            m.setAccessible(true);
+        }
+        return m;
+    }
+
+    /**
+     * Finds a method in the given class with the exact same name and parameter types.
+     * Returns {@code null} if not found.
+     */
+    private static Method getExactDeclaredMethod(final Class<?> cls, final String name, final Class<?>... parameterTypes) {
+        try {
+            return cls.getDeclaredMethod(name, parameterTypes);
+        } catch (final NoSuchMethodException e) {
+            return null;
+        }
     }
 
     private static Method getInvokeMethod(final boolean forceAccess, final String methodName, final Class<?>[] parameterTypes, final Class<? extends Object> cls) {
@@ -297,6 +318,7 @@ public class MethodUtils {
         }
         return method;
     }
+
 
     /**
      * Gets an accessible method that matches the given name and has compatible parameters. Compatible parameters mean that every method parameter is assignable
