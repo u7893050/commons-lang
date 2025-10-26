@@ -288,22 +288,57 @@ public class MethodUtils {
         return annotation;
     }
 
+    /**
+     * Finds an accessible method in the given class with the exact same
+     * name and parameter types. Does NOT force accessibility if the method
+     * is not public.
+     */
     private static Method getExactAccessibleMethod(final Class<?> cls, final String name, final Class<?>... parameterTypes) {
-        final Method m = getExactDeclaredMethod(cls, name, parameterTypes);
-        if (m != null && !m.isAccessible()) {
-            m.setAccessible(true);
+        try {
+            final Method m = cls.getDeclaredMethod(name, parameterTypes);
+            if (MemberUtils.isAccessible(m)) {
+                return m;
+            }
+            return null;
+        } catch (final NoSuchMethodException e) {
+            return null;
         }
-        return m;
     }
 
     /**
      * Finds a method in the given class with the exact same name and parameter types.
-     * Returns {@code null} if not found.
+     * If no exact match is found, falls back to the nearest assignable match
+     * to maintain backward compatibility with legacy behavior.
+     *
+     * @param cls the class to search
+     * @param name the method name
+     * @param parameterTypes the exact parameter types to match
+     * @return a matching Method or {@code null} if none found
      */
     private static Method getExactDeclaredMethod(final Class<?> cls, final String name, final Class<?>... parameterTypes) {
         try {
             return cls.getDeclaredMethod(name, parameterTypes);
         } catch (final NoSuchMethodException e) {
+            for (final Method m : cls.getDeclaredMethods()) {
+                if (!m.getName().equals(name)) {
+                    continue;
+                }
+                final Class<?>[] candidateParams = m.getParameterTypes();
+                if (candidateParams.length != parameterTypes.length) {
+                    continue;
+                }
+
+                boolean assignable = true;
+                for (int i = 0; i < candidateParams.length; i++) {
+                    if (!candidateParams[i].isAssignableFrom(parameterTypes[i])) {
+                        assignable = false;
+                        break;
+                    }
+                }
+                if (assignable) {
+                    return m;
+                }
+            }
             return null;
         }
     }
